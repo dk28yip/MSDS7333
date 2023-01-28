@@ -3,46 +3,37 @@
 
 # # DS7333 Case Study 2
 # ## Predicting Hospital Readmittance Utilizing Logistic Regression Models
-# 
+#
 # #### John Girard, Shijo Joseph, Douglas Yip
 
-# Installing and setting up flake8 
-
-# In[1]:
-
+# Installing and setting up flake8
 
 # if you do not have flake8 installed
 # then uncomment the pip line below and run it.
 
 # pip install flake8 pycodestyle_magic
 
-
-# In[2]:
-
-
-get_ipython().run_line_magic('load_ext', 'pycodestyle_magic')
-get_ipython().run_line_magic('pycodestyle_on', '')
-
-
 # #### Objective
-# 
-# Your case study is to build a classifier using logistic regression to predict hospital readmittance. There is missing data that must be imputed. Once again, discuss variable importances as part of your submission..
+
+# Your case study is to build a classifier using logistic regression to
+# predict hospital readmittance. There is missing data that must be imputed.
+# Once again, discuss variable importances as part of your submission..
 
 # In[3]:
-
 
 # Importing Libraries that will be used to
 # ingest data and complete our regression
 import pandas as pd
 import numpy as np
 import seaborn as sns
-import plotly.express as px
 import matplotlib.pyplot as plt
-from matplotlib.pyplot import figure
-from copy import deepcopy
-get_ipython().run_line_magic('matplotlib', 'inline')
-get_ipython().run_line_magic('matplotlib', 'inline')
-
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import KFold
+from sklearn.metrics import confusion_matrix
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report
 
 # ## 1) Import data
 # This process will ingest the data into dataframe
@@ -94,7 +85,8 @@ df.describe().T
 # ## 2) Clean data
 # This process will clean the data before proceeding to EDA
 
-# Reviewing the excel document there are columns that have "?" where python will read these as objects that are not null.
+# Reviewing the excel document there are columns that have "?"
+# where python will read these as objects that are not null.
 # We will need to remove the ?
 
 # In[9]:
@@ -145,14 +137,19 @@ plt.show
 
 
 # ## 3) Imputtation of data
-# In this section we wil evaluate what to do with the the missing data for these columns;
+# In this section we wil evaluate what to do with
+# the the missing data for these columns;
 # - __a.__ Weight
 # - __b.__ Payer_code/medical_speciallty
 # - __d.__ race
 # - __e.__ diag_1, 2 and 3
 
 # #### 3a) Weight Imputtation
-# We impute weight data by using age as an indicator. Given we have some domain knowledge and can research valid weight values within specific age ranges, we used that knowledge to substitute missing values with the weight range that has the highest frequency within that range.
+# We impute weight data by using age as an indicator.
+# Given we have some domain knowledge and can research
+# valid weight values within specific age ranges, we used
+# that knowledge to substitute missing values with the
+# weight range that has the highest frequency within that range.
 
 # In[12]:
 
@@ -232,7 +229,8 @@ imput_df['weight'].unique()
 
 
 # #### 3b) Payer_code/medical_speciallty
-# Looking at Payer_code and medical_specialiaty we will look at how much data is missing.
+# Looking at Payer_code and medical_specialiaty
+# we will look at how much data is missing.
 
 # In[18]:
 
@@ -240,7 +238,9 @@ imput_df['weight'].unique()
 imput_df.isnull().sum()/len(df)*100
 
 
-# Given that we have no domanin knowledge and that >40% of the data for the two columns are missing, we will remove the columns for our model.
+# Given that we have no domanin knowledge and
+# that >40% of the data for the two columns are
+# missing, we will remove the columns for our model.
 
 # In[19]:
 
@@ -251,7 +251,10 @@ imput_df = imput_df.drop(['weight', 'payer_code',
 
 
 # #### 3c) Race Imputtation
-# We impute weight data by using age as an indicator. We examine valid weight values within specific age ranges and substitute missing values with the weight range that has the highest frequency within that range.
+# We impute weight data by using age as an indicator.
+# We examine valid weight values within specific age ranges and
+# substitute missing values with the weight range that has the
+# highest frequency within that range.
 
 # In[20]:
 
@@ -269,34 +272,31 @@ plt.xlabel('Race', fontsize=14)
 imput_df['race'] = imput_df['race'].fillna(
     imput_df['race'].mode()[0])
 
-
-# It stands to reason that older patients, over weight patients, and patients with chronic illness that spend more time in the hospital will have a more likely chance to be readmitted to the hospital.
+# It stands to reason that older patients, over weight patients,
+# and patients with chronic illness that spend more time in the
+# hospital will have a more likely chance to be readmitted to the hospital.
 
 # #### 3c) Diag 1,2 and 3 Imputtation
-# Given that we have <1.5% of examples without data, given its immateraility, we removed the rows that did not have values
+# Given that we have <1.5% of examples without data, given its
+# immateraility, we removed the rows that did not have values
 
 # In[21]:
 
-
 imput_df = imput_df.loc[~imput_df.diag_3.isna()]
-
 
 # In[22]:
 
-
 imput_df = imput_df.loc[~imput_df.diag_2.isna()]
-
 
 # In[23]:
 
-
 imput_df = imput_df.loc[~imput_df.diag_1.isna()]
-
 
 # ## 3) EDA - Look at ID mapping
 
 # One area that we observed was the discharged IDs.
-# Give that 4 ids are related to death, the likelyhood of readmission is 0 and therefore we remove the row.
+# Give that 4 ids are related to death, the likelyhood of
+# readmission is 0 and therefore we remove the row.
 # ###### Discharge IDs
 # - __11)__ Expired
 # - __20)__ Expired at home. Medicaid only, hospice.
@@ -304,7 +304,6 @@ imput_df = imput_df.loc[~imput_df.diag_1.isna()]
 # - __22)__ Expired, place unknown. Medicaid only, hospice.
 
 # In[24]:
-
 
 # Looking at the IDs_mapping.csv we can see that 11 -
 # Expired ,19,20,21 are related to death or hospice.
@@ -314,28 +313,23 @@ imput_df = imput_df.loc[
     .isin(['11', '19', '20', '21'])
 ]
 
-
 # In[25]:
-
 
 # remove unique identifiers
 imput_df = imput_df.drop(['encounter_id',
                           'patient_nbr'], axis=1)
 
-
 # In[26]:
-
 
 imput_df.shape
 
-
-# The number of records that were removed was 1,652 rows and 3 columns from the original data set.
+# The number of records that were removed was 1,652 rows
+# and 3 columns from the original data set.
 
 # ## 4) Model LDA
 # This process will clean the data before proceeding to EDA
 
 # In[27]:
-
 
 # create the target dataframe
 y = imput_df['readmitted']
@@ -348,16 +342,12 @@ y = y.replace(to_replace='>30', value=2)
 
 y
 
-
 # In[28]:
-
 
 # create df for hotcode less the y varaible
 imput_df_lessY = imput_df.drop('readmitted', axis=1)
 
-
 # In[29]:
-
 
 # One Hot Encode Categorical Variables
 # https://datagy.io/sklearn-one-hot-encode/
@@ -377,9 +367,6 @@ imput_df_lessY
 
 # In[31]:
 
-
-from sklearn.preprocessing import StandardScaler
-
 scaler = StandardScaler()
 # Get the Numeric columns for the X
 X_Numeric = imput_df_lessY.loc[
@@ -390,39 +377,29 @@ X_Numeric_scaled = pd.DataFrame(scaler.fit_transform(X_Numeric),
                                 columns=X_Numeric.columns)
 X_Numeric
 
-
 # In[32]:
-
 
 X_Numeric_scaled
 
-
 # In[33]:
-
 
 X_Numeric_scaled.describe()
 
-
 # In[34]:
-
 
 X_cat = imput_df_lessY[categorical_cols]
 X_cat = X_cat.reset_index()
 X_cat = X_cat[categorical_cols]
 X_cat
 
-
 # In[35]:
-
 
 result = pd.concat([X_Numeric_scaled,
                     X_cat],
                    axis=1)
 result
 
-
 # In[36]:
-
 
 # create one hot code df and create a df_final to be used for the model
 X = pd.get_dummies(result, columns=categorical_cols)
@@ -431,29 +408,28 @@ X
 
 # In[37]:
 
-
 X.describe()
 
+# set the target y .. Then find the priors, % of being readmitted
+# less than 30 days and greater than 30 days (grouping together)
+# and no being opposite
+# remove the target from big dataset.
 
-# In[38]:
+# use cross validation technique with the priors in mind.
+# Use logistic regression.
 
-
-get_ipython().run_cell_magic('time', '', "# set the target y .. Then find the priors, % of being readmitted\n# less than 30 days and greater than 30 days (grouping together)\n# and no being opposite\n# remove the target from big dataset.\n\n# use cross validation technique with the priors in mind.\n# Use logistic regression.\n\nfrom sklearn.linear_model import LogisticRegression\n\n\n# Fit Model\nlr_model = LogisticRegression(multi_class='multinomial',\n                              random_state=1,\n                              n_jobs=-1)\nlr_model.fit(X, y)")
-
-
-# In[39]:
-
+# Fit Model
+lr_model = LogisticRegression(multi_class='multinomial',
+                              random_state=1,
+                              n_jobs=-1)
+lr_model.fit(X, y)
 
 # check accuracy with same data
 lr_model.score(X, y)
 
-
 # In[40]:
 
-
 # find tune model and find the best regularization C for our model
-from sklearn.model_selection import cross_val_score
-from sklearn.model_selection import KFold
 
 splits = KFold(n_splits=5, shuffle=True)
 
@@ -470,25 +446,16 @@ for i in alpha:
 print('Best Alpha:', best_alpha)
 print('Best MSE:', best)
 
-
-# In[41]:
-
-
 best_alpha
-
-
-# In[42]:
-
 
 best
 
-
 # In[43]:
 
-
 # split data for training
-from sklearn.model_selection import train_test_split
-X_train, X_test, y_train, y_test =     train_test_split(X, y, test_size=0.2,
+
+X_train, X_test, y_train, y_test = \
+    train_test_split(X, y, test_size=0.2,
                      shuffle=True, stratify=y, random_state=1)
 
 
@@ -503,21 +470,15 @@ pred_ncv = best_lr.fit(X_train, y_train)
 pred_ncv.score(X_test, y_test)
 
 
-# In[52]:
-
-
-#create prediction modelscores  
+# create prediction modelscores
 pred = best_lr.predict(X_test)
 pred
-
 
 # ### 4) Results from model
 # Confusion matrix and fscore to evaluate model accruacy
 
 # In[53]:
 
-
-from sklearn.metrics import classification_report
 print(classification_report(y_test, pred,
                             target_names=['No_Readmission',
                                           'Readmission <30days',
@@ -525,11 +486,6 @@ print(classification_report(y_test, pred,
 
 
 # In[54]:
-
-
-from sklearn.metrics import confusion_matrix
-import seaborn as sns
-import matplotlib.pyplot as plt
 
 cm0 = confusion_matrix(y_test, pred)
 x_axis_labels = ['NO', '<30', '>30']
@@ -544,7 +500,6 @@ ax.set_title('Hospital Readmission Confusion Matrix Heatmap')
 plt.xlabel("Predicted readmission")
 plt.ylabel("True readmission")
 plt.show
-
 
 # In[55]:
 
@@ -590,10 +545,3 @@ plt.yticks(ylocs,
 
 
 plt.show()
-
-
-# In[ ]:
-
-
-
-
