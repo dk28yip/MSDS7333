@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 import argparse
 import os
 import sys
@@ -10,7 +9,6 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
-from sklearn.cluster import KMeans
 
 
 def prediction(df):
@@ -20,14 +18,10 @@ def prediction(df):
         train_test_split(df, test_size=0.2, random_state=25)
     Xtrain = count.fit_transform(training_data['email_body'])
     Xtrain = Xtrain.toarray()
-    cluster_array = np.array(training_data['clusters'])
-    Xtrain2 = np.hstack((Xtrain, cluster_array.reshape(-1, 1)))
-    clf.fit(Xtrain2, training_data['labels'])
+    clf.fit(Xtrain, training_data['labels'])
     Xtest = count.transform(testing_data['email_body'])
     Xtest = Xtest.toarray()
-    cluster_array = np.array(testing_data['clusters'])
-    Xtest2 = np.hstack((Xtest, cluster_array.reshape(-1, 1)))
-    preds = clf.predict(Xtest2)
+    preds = clf.predict(Xtest)
     return print(classification_report(testing_data['labels'], preds))
 
 
@@ -50,8 +44,23 @@ def create_df_from_file(path):
                 if "multipart" in x.get_content_type():
                     if x.is_multipart():
                         for part in x.get_payload():
-                            message = message + part.as_string()
+                            if "text/plain" in part.get_content_type():
+                                message = message + \
+                                    (part.get_payload()
+                                     .replace("\t", "")
+                                     .replace("\n", " ")
+                                     .replace(r'http\S+', ' ')
+                                     .replace("-", " "))
+                            elif "text/html" in part.get_content_type():
+                                message = message + \
+                                    (BS4(part.get_payload(), "html.parser")
+                                     .get_text()
+                                     .replace("\t", "")
+                                     .replace(r'http\S+', ' ')
+                                     .replace("\n", " ")
+                                     .replace("-", " "))
                     contents.append(message.replace("\n", " ")
+                                    .replace("\t", "")
                                     .replace(r'http\S+', ' ')
                                     .replace("-", " "))
                 elif "text/plain" in x.get_content_type():
@@ -79,14 +88,6 @@ def create_df_from_file(path):
     df_NB['email_body'] = contents
     df_NB['labelnames'] = labelnames
     df_NB['labels'] = labels
-    the_count = CountVectorizer()
-    Xtrain = the_count.fit_transform(df_NB['email_body'])
-    Xtrain = Xtrain.toarray()
-    km = KMeans(n_clusters=11,
-                n_init='auto',
-                random_state=0)
-    clusters = km.fit_predict(Xtrain)
-    df_NB['clusters'] = clusters
     return df_NB
 
 
